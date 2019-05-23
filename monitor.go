@@ -133,7 +133,7 @@ func (m *Monitor) receiveDevice() (d *Device) {
 // channel. The function takes a context as argument, which when done will stop
 // the goroutine and close the device channel. Only socket connections with
 // uid=0 are accepted.
-func (m *Monitor) DeviceChan(ctx context.Context) (<-chan *Device, error) {
+func (m *Monitor) DeviceChan(ctx context.Context, ch chan *Device) error {
 
 	var event unix.EpollEvent
 	var events [maxEpollEvents]unix.EpollEvent
@@ -144,30 +144,30 @@ func (m *Monitor) DeviceChan(ctx context.Context) (<-chan *Device, error) {
 
 	// Enable receiving
 	if C.udev_monitor_enable_receiving(m.ptr) != 0 {
-		return nil, errors.New("udev: udev_monitor_enable_receiving failed")
+		return errors.New("udev: udev_monitor_enable_receiving failed")
 	}
 
 	// Set the fd to non-blocking
 	fd := C.udev_monitor_get_fd(m.ptr)
 	if e := unix.SetNonblock(int(fd), true); e != nil {
-		return nil, errors.New("udev: unix.SetNonblock failed")
+		return errors.New("udev: unix.SetNonblock failed")
 	}
 
 	// Create an epoll fd
 	epfd, e := unix.EpollCreate1(0)
 	if e != nil {
-		return nil, errors.New("udev: unix.EpollCreate1 failed")
+		return errors.New("udev: unix.EpollCreate1 failed")
 	}
 
 	// Add the fd to the epoll fd
 	event.Events = unix.EPOLLIN | unix.EPOLLET
 	event.Fd = int32(fd)
 	if e = unix.EpollCtl(epfd, unix.EPOLL_CTL_ADD, int(fd), &event); e != nil {
-		return nil, errors.New("udev: unix.EpollCtl failed")
+		return errors.New("udev: unix.EpollCtl failed")
 	}
 
 	// Create the channel
-	ch := make(chan *Device)
+	// ch := make(chan *Device)
 
 	// Create goroutine to epoll the fd
 	go func(fd int32) {
@@ -204,5 +204,5 @@ func (m *Monitor) DeviceChan(ctx context.Context) (<-chan *Device, error) {
 		}
 	}(int32(fd))
 
-	return ch, nil
+	return nil
 }
